@@ -31,11 +31,12 @@
 #include "UPnP.h"
 #include "UPnP/UPnPService.h"
 #include <UPnP/WebServer.h>
-#include "dht.h"
+#include "DHT.h"
 
-#define DHT_STATE_LENGTH	16
+#define DHT_STATE_LENGTH	32
 #define	DHT_SENSOR_PIN_DEFAULT	12
 #define DHT_SENSOR_TYPE_DEFAULT	11
+#define DHT_SENSOR_COUNT_DEFAULT 15
 
 class DHTSensorService : public UPnPService {
   public:
@@ -44,6 +45,7 @@ class DHTSensorService : public UPnPService {
     DHTSensorService(const char *serviceType, const char *serviceId);
     ~DHTSensorService();
     void begin();
+    void begin(int, int, int);
     const char *GetState();
     void GetStateHandler();
 
@@ -51,13 +53,12 @@ class DHTSensorService : public UPnPService {
     
   private:
     Configuration *config;
-    dht *sensor;
+    DHT *sensor;
 
     int sensorpin, sensortype;
     char state[DHT_STATE_LENGTH];
     WebServer *http;
-    float oldtemperature, newtemperature;
-    float newhumidity, oldhumidity;
+    float oldtemperature = 0, oldhumidity = 0;
 };
 
 #endif /* _INCLUDE_DHT_SENSOR_SERVICE_H_ */

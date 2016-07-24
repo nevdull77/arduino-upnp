@@ -31,7 +31,7 @@
 
 #include "UPnP.h"
 #include "UPnP/UPnPService.h"
-#include "dht.h"
+#include <dht.h>
 #include "UPnP/DHTSensorService.h"
 #include "UPnP/WebServer.h"
 
@@ -110,96 +110,60 @@ DHTSensorService::~DHTSensorService() {
 #endif  
 }
 
-void DHTSensorService::begin() {
+void DHTSensorService::begin(int sensorpin, int sensortype, int sensorcount) {
 #ifdef DEBUG
   DEBUG.println("DHTSensorService::begin");
 #endif
 
   config = new Configuration("DHT",
-    new ConfigurationItem("pin", DHT_SENSOR_PIN_DEFAULT),
-    new ConfigurationItem("type", DHT_SENSOR_TYPE_DEFAULT),
+    new ConfigurationItem("pin", sensorpin),
+    new ConfigurationItem("type", sensortype),
+    new ConfigurationItem("count", sensorcount),
     new ConfigurationItem("name", ""));
   UPnPService::begin(config);
 
   sensorpin = config->GetValue("pin");
   sensortype = config->GetValue("type");
 
-  sensor = new dht();
+  sensor = new DHT(sensorpin, sensortype, sensorcount);
+  sensor->begin();
+
+  state[0] = 0;
 
 #ifdef DEBUG
   DEBUG.printf("DHT::begin (sensor pin %d, type DHT-%d)\n", sensorpin, sensortype);
 #endif
 }
 
-int inited = 0;
+void DHTSensorService::begin() {
+  begin(DHT_SENSOR_PIN_DEFAULT, DHT_SENSOR_TYPE_DEFAULT, DHT_SENSOR_COUNT_DEFAULT);
+}
 
 void DHTSensorService::poll() {
-  int check = sensor->read11(sensorpin);
+  float temp_c = sensor->readTemperature(false, false);
+  float temp_f = sensor->readTemperature(true, false);
+  float humidity = sensor->readHumidity(false);
 
-#ifdef DEBUG
-  switch (check) {
-    case DHTLIB_OK:
-      Serial.print("OK,\t");
-      break;
-    case DHTLIB_ERROR_CHECKSUM:
-      Serial.print("Checksum error,\t");
-      break;
-    case DHTLIB_ERROR_TIMEOUT:
-      Serial.print("Time out error,\t");
-      break;
-    case DHTLIB_ERROR_CONNECT:
-      Serial.print("Connect error,\t");
-      break;
-    case DHTLIB_ERROR_ACK_L:
-      Serial.print("Ack Low error,\t");
-      break;
-    case DHTLIB_ERROR_ACK_H:
-      Serial.print("Ack High error,\t");
-      break;
-    default:
-      Serial.print("Unknown error,\t");
-      break;
-  }
-#endif
-
-  if (check != DHTLIB_OK)
+  if (temp_c == 0 || isnan(temp_c) || isnan(humidity))
     return;
 
-  oldtemperature = newtemperature;
-  oldhumidity = newhumidity;
-
-  newtemperature = sensor->temperature;
-  newhumidity = sensor->humidity;
-
-  if (inited <= 3) {
-    inited++;
-#ifdef DEBUG
-    DEBUG.print("DHT: temp ");
-    DEBUG.print(newtemperature);
-    DEBUG.print(" °C");
-    DEBUG.print(", humidity ");
-    DEBUG.println(newhumidity);
-#endif
-  }
-
-  if (isnan(newtemperature) || isnan(newhumidity)) {
-    newtemperature = oldtemperature;
-    newhumidity = oldhumidity;
-    return;
-  }
-
-  if (oldtemperature != newtemperature) {
-    sprintf(state, "%d", newtemperature);
-
+  if (oldtemperature != temp_c ) {
+    //sprintf(state, "%s,%s,%s", String(temp_c, 1), String(temp_f, 1), String(humidity, 1));
+    strncpy(state, (String(temp_c, 1) + "C;" + String(temp_f, 1) + "F;" + String(humidity, 1) + '%').c_str(), DHT_STATE_LENGTH);
     SendNotify("State");
 #ifdef DEBUG
     DEBUG.print("DHT: temp ");
-    DEBUG.print(newtemperature);
+    DEBUG.print(temp_c);
+    DEBUG.print(" °C");
+    DEBUG.print(", oldtemperature: ");
+    DEBUG.print(oldtemperature);
     DEBUG.print(" °C");
     DEBUG.print(", humidity ");
-    DEBUG.println(newhumidity);
+    DEBUG.println(humidity);
 #endif
   }
+  oldtemperature = temp_c;
+  oldhumidity = humidity;
 }
 
 const char *DHTSensorService::GetState() {
@@ -224,7 +188,10 @@ void DHTSensorService::GetStateHandler() {
        *tmp1 = (char *)malloc(l1);
 #ifdef DEBUG
   DEBUG.println("DHTSensorService::GetStateHandler");
+  DEBUG.printf("DHTSensorService::state: %s\n", DHTSensorService::state);
 #endif
+  if (strlen(state)==0)
+    poll();
   strcpy(tmp1, UPnPClass::envelopeHeader);
   sprintf(tmp2, gsh_template, myServiceType, DHTSensorService::state);
   strcat(tmp1, tmp2);

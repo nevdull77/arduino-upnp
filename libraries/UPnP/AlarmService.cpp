@@ -277,6 +277,6 @@ void AlarmService::SendMailSample(int port) {
   mail.body("Yes I can\n");
   int r = smtp->send(&mail);
   Serial.printf("Send mail : %d\n", r);
-  if (r == 0)
-    Serial.printf("Error text %s, line %d\n", smtp->GetErrorText(), smtp->GetErrorLine());
+  //if (r == 0)
+  //  Serial.printf("Error text %s, line %d\n", smtp->GetErrorText(), smtp->GetErrorLine());
 }
